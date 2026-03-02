@@ -2,6 +2,7 @@ import type { IRole, IUser } from '@rocket.chat/core-typings';
 import type { FindPaginated } from '@rocket.chat/model-typings';
 import { Roles, Subscriptions, Users } from '@rocket.chat/models';
 import { compact } from 'lodash';
+import { Meteor } from 'meteor/meteor';
 import type { Document, FindCursor, FindOptions } from 'mongodb';
 
 export function getUsersInRole(roleId: IRole['_id'], scope?: string): Promise<FindCursor<IUser>>;
@@ -14,11 +15,7 @@ export function getUsersInRole<P extends Document = IUser>(
 	options: FindOptions<P extends IUser ? IUser : P>,
 ): Promise<FindCursor<P extends IUser ? IUser : P>>;
 
-export function getUsersInRole<P = IUser>(
-	roleId: IRole['_id'],
-	scope: string | undefined,
-	options?: any | undefined,
-): Promise<FindCursor<IUser | P>> {
+export function getUsersInRole<P = IUser>(roleId: IRole['_id'], scope: string | undefined, options?: any): Promise<FindCursor<IUser | P>> {
 	// TODO move the code from Roles.findUsersInRole to here and change all places to use this function
 	return Roles.findUsersInRole(roleId, scope, options);
 }
@@ -26,15 +23,19 @@ export function getUsersInRole<P = IUser>(
 export async function getUsersInRolePaginated(
 	roleId: IRole['_id'],
 	scope: string | undefined,
-	options?: any | undefined,
+	options?: any,
 ): Promise<FindPaginated<FindCursor<IUser>>> {
 	if (process.env.NODE_ENV === 'development' && (scope === 'Users' || scope === 'Subscriptions')) {
-		throw new Error('Roles.findUsersInRole method received a role scope instead of a scope value.');
+		throw new Meteor.Error('error-invalid-scope', 'Roles.findUsersInRole received a role scope instead of a room scope', {
+			method: 'authorization:getUsersInRolePaginated',
+		});
 	}
 
 	const role = await Roles.findOneById<Pick<IRole, '_id' | 'scope'>>(roleId, { projection: { scope: 1 } });
 	if (!role) {
-		throw new Error('role not found');
+		throw new Meteor.Error('error-role-not-found', 'Role not found', {
+			method: 'authorization:getUsersInRolePaginated',
+		});
 	}
 
 	switch (role.scope) {
